@@ -19,23 +19,28 @@ Usage
 
 .. code-block:: python
 
-    from kv4p import Kv4pRadio, Kv4pSettings
+    from kv4p import Kv4pRadio
     from kv4p.transports.serial import Kv4pSerialTransport
 
     transport = Kv4pSerialTransport("/dev/ttyUSB0", 115200)
     radio = Kv4pRadio(transport, on_rx_audio=..., on_sql=...)
 
     with radio:
-        radio.configure(Kv4pSettings(rx_freq=145.500, tx_freq=145.500, tx_allowed=True))
+        # radio.freq_rx / .bandwidth / .squelch / ... are seeded from the
+        # firmware's actual tuned state, reported in HELLO right after open().
+        radio.set_frequency(rx=145.500, tx=145.500)
+        radio.set_tx_allowed(True)
         radio.set_ptt(True)
         radio.send_tx_audio(payload)
         radio.set_ptt(False)
 
 ``Kv4pRadio.open()``/``reset()`` hardware-reset the ESP32 over RTS/DTR and
 block until HELLO is received, since the firmware only sends it once, at
-boot. Operations that need the handshake (``configure``, ``set_frequency``,
-``set_ptt``, ``send_tx_audio``) raise ``RadioNotReadyError`` if called before
-that.
+boot — this is also how the radio's settings properties get their initial
+values, straight from the firmware's own DeviceState. Operations that need
+the handshake (``set_frequency``, ``set_bandwidth``, ``set_squelch``,
+``set_ctcss``, ``set_ptt``, ``send_tx_audio``, ...) raise
+``RadioNotReadyError`` if called before that.
 
 For tests or hardware-free runs, use ``kv4p.transports.dummy.DummyTransport``,
 which answers ``reset()`` with a synthetic HELLO.
@@ -46,9 +51,8 @@ Layout
 .. code-block:: text
 
     kv4p/
-      __init__.py        # Kv4pRadio, Kv4pSettings, vendor encode/decode
-      settings.py         # Kv4pSettings
-      state_tracker.py      # DeviceStateTracker: handshake, device state, HostDesiredState, PTT
+      __init__.py        # Kv4pRadio, vendor encode/decode
+      state_tracker.py     # DeviceStateTracker: handshake, device state, settings, PTT
       flow_control.py         # FlowControlWindow: HTTP/2-like flow control
       constants/                 # numeric/bit constants (kiss, vendor, messages)
       protocol/                   # wire framing: kiss.py, ax25.py

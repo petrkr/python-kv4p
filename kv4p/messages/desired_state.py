@@ -20,6 +20,11 @@ def bandwidth_to_dra818(value: str) -> int:
     raise ValueError(f"unsupported bandwidth: {value}")
 
 
+def dra818_to_bandwidth(value: int) -> str:
+    """Translate a DRA818_* constant into a bandwidth string."""
+    return "25k" if value == DRA818_25K else "12.5k"
+
+
 @dataclass(frozen=True, slots=True)
 class HostDesiredState:
     """Host desired radio/control state."""

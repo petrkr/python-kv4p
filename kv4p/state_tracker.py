@@ -8,7 +8,6 @@ from collections.abc import Callable
 
 from kv4p.constants.messages import (
     DEVICE_STATE_PHYS_PTT_DOWN,
-    DRA818_25K,
     HOST_STATE_ENABLE_STATUS_REPORTS,
     HOST_STATE_FILTER_HIGH,
     HOST_STATE_FILTER_LOW,
@@ -20,13 +19,19 @@ from kv4p.constants.messages import (
     HOST_STATE_RX_AUDIO_OPEN,
     HOST_STATE_TX_ALLOWED,
 )
-from kv4p.constants.vendor import COMMAND_HOST_TX_AUDIO
-from kv4p.messages.desired_state import HostDesiredState, bandwidth_to_dra818
+from kv4p.constants.vendor import COMMAND_AUDIO_ADPCM, COMMAND_AUDIO_OPUS
+from kv4p.messages.desired_state import HostDesiredState, dra818_to_bandwidth
 from kv4p.messages.device_state import DeviceState
 from kv4p.messages.hello import Hello
-from kv4p.settings import Kv4pSettings
 
 logger = logging.getLogger(__name__)
+
+# Firmware 17 is the last known version using Opus TX audio on 0x07. There is
+# no published feature bit to detect ADPCM (0x0C) support, and it's unknown
+# at which version upstream actually switches — this threshold is a guess
+# based on "17 is confirmed 0x07" and must be revisited once a newer firmware
+# version's actual behavior is known.
+_OPUS_MAX_FW = 17
 
 
 def _mode_name(mode: int) -> str:
@@ -40,7 +45,14 @@ def _mode_name(mode: int) -> str:
 
 
 class DeviceStateTracker:
-    """Tracks the firmware handshake/state and builds outgoing HostDesiredState frames."""
+    """Tracks the firmware handshake/state and builds outgoing HostDesiredState frames.
+
+    Radio settings (frequency, bandwidth, squelch, CTCSS, ...) are seeded from
+    the DeviceState carried in HELLO — the firmware always reports its actual
+    tuned state there, right after `Kv4pRadio.open()`/`reset()` forces a
+    reboot. There is no separate "desired settings" object with its own
+    defaults; `set_*()` calls mutate this tracked state directly.
+    """
 
     def __init__(
         self,
@@ -62,7 +74,16 @@ class DeviceStateTracker:
         self._device_state: DeviceState | None = None
         self._sequence = 0
         self._flags = self._initial_flags()
-        self._settings = Kv4pSettings()
+        self._tx_audio_command = COMMAND_AUDIO_OPUS
+
+        # Radio settings, seeded from HELLO's DeviceState in on_hello().
+        self._freq_rx = 0.0
+        self._freq_tx = 0.0
+        self._bw = 0
+        self._squelch = 0
+        self._ctcss_rx = 0
+        self._ctcss_tx = 0
+
         self._last_sql_open: bool | None = None
         self._last_physical_ptt: bool | None = None
         self._rx_open_sent_after_state = False
@@ -77,6 +98,10 @@ class DeviceStateTracker:
             self._device_state = hello.device_state
             self._sequence = hello.device_state.applied_sequence
             self._flags = self._initial_flags()
+            self._seed_settings_locked(hello.device_state)
+            self._tx_audio_command = (
+                COMMAND_AUDIO_ADPCM if hello.version.ver > _OPUS_MAX_FW else COMMAND_AUDIO_OPUS
+            )
             self._rx_open_sent_after_state = False
         logger.info(
             "HELLO firmware=%d window=%d radio=%s range=%.3f-%.3f features=0x%02x",
@@ -126,7 +151,7 @@ class DeviceStateTracker:
         if self._on_rx_audio is not None:
             self._on_rx_audio(payload)
 
-    # -- outgoing state -------------------------------------------------------
+    # -- setters ----------------------------------------------------------------
 
     def request_ptt(self, enabled: bool) -> bool:
         """Set/clear the PTT-requested bit. Returns True if the flags actually changed."""
@@ -144,11 +169,43 @@ class DeviceStateTracker:
             self._send_desired_state_locked()
             return True
 
-    def apply_settings(self, settings: Kv4pSettings) -> None:
-        """Build and send a full HostDesiredState snapshot from `settings`."""
+    def set_frequency(self, *, rx: float | None = None, tx: float | None = None) -> None:
+        """Update RX/TX frequency and send the new desired state."""
         with self._lock:
-            self._settings = settings
-            self._flags = self._flags_for_settings(settings)
+            if rx is not None:
+                self._freq_rx = rx
+            if tx is not None:
+                self._freq_tx = tx
+            self._send_desired_state_locked()
+
+    def set_bandwidth(self, bw: int) -> None:
+        """Update bandwidth (a DRA818_* constant) and send the new desired state."""
+        with self._lock:
+            self._bw = bw
+            self._send_desired_state_locked()
+
+    def set_squelch(self, squelch: int) -> None:
+        """Update squelch level and send the new desired state."""
+        with self._lock:
+            self._squelch = squelch
+            self._send_desired_state_locked()
+
+    def set_ctcss(self, *, rx: int | None = None, tx: int | None = None) -> None:
+        """Update RX/TX CTCSS tone and send the new desired state."""
+        with self._lock:
+            if rx is not None:
+                self._ctcss_rx = rx
+            if tx is not None:
+                self._ctcss_tx = tx
+            self._send_desired_state_locked()
+
+    def set_flag(self, flag: int, enabled: bool) -> None:
+        """Set/clear one of the HOST_STATE_* option bits and send the new desired state."""
+        with self._lock:
+            if enabled:
+                self._flags |= flag
+            else:
+                self._flags &= ~flag
             self._send_desired_state_locked()
 
     def _send_desired_state_locked(self) -> None:
@@ -172,24 +229,23 @@ class DeviceStateTracker:
             state.flags,
             state.freq_rx,
             state.freq_tx,
-            "25k" if state.bw == DRA818_25K else "12.5k",
+            dra818_to_bandwidth(state.bw),
             state.squelch,
             state.ctcss_rx,
             state.ctcss_tx,
         )
 
     def _build_desired_state_locked(self) -> HostDesiredState:
-        settings = self._settings
         return HostDesiredState(
             sequence=self._sequence,
             memory_id=-1,
             flags=self._flags,
-            bw=bandwidth_to_dra818(settings.bandwidth),
-            freq_tx=settings.tx_freq,
-            freq_rx=settings.rx_freq,
-            ctcss_tx=settings.ctcss_tx,
-            squelch=settings.squelch,
-            ctcss_rx=settings.ctcss_rx,
+            bw=self._bw,
+            freq_tx=self._freq_tx,
+            freq_rx=self._freq_rx,
+            ctcss_tx=self._ctcss_tx,
+            squelch=self._squelch,
+            ctcss_rx=self._ctcss_rx,
         )
 
     # -- derived properties -----------------------------------------------
@@ -210,18 +266,43 @@ class DeviceStateTracker:
             return self._flags
 
     @property
-    def settings(self) -> Kv4pSettings:
-        """Last settings applied via `apply_settings`, or defaults if never called."""
+    def freq_rx(self) -> float:
         with self._lock:
-            return self._settings
+            return self._freq_rx
+
+    @property
+    def freq_tx(self) -> float:
+        with self._lock:
+            return self._freq_tx
+
+    @property
+    def bandwidth(self) -> str:
+        with self._lock:
+            return dra818_to_bandwidth(self._bw)
+
+    @property
+    def squelch(self) -> int:
+        with self._lock:
+            return self._squelch
+
+    @property
+    def ctcss_rx(self) -> int:
+        with self._lock:
+            return self._ctcss_rx
+
+    @property
+    def ctcss_tx(self) -> int:
+        with self._lock:
+            return self._ctcss_tx
 
     @property
     def tx_audio_command(self) -> int:
-        """TX audio vendor command, derived from the firmware's advertised features."""
-        # No feature bit for ADPCM (0x0C) is published upstream yet; once the
-        # firmware advertises one, branch on it here instead of guessing from
-        # the version number.
-        return COMMAND_HOST_TX_AUDIO
+        """TX audio vendor command, guessed once in on_hello() from the firmware version.
+
+        See `_OPUS_MAX_FW` above — there is no feature bit to detect this properly yet.
+        """
+        with self._lock:
+            return self._tx_audio_command
 
     @property
     def physical_ptt(self) -> bool:
@@ -247,24 +328,14 @@ class DeviceStateTracker:
             flags |= HOST_STATE_ENABLE_STATUS_REPORTS
         return flags
 
-    def _flags_for_settings(self, settings: Kv4pSettings) -> int:
-        flags = self._initial_flags()
-        if settings.high_power:
-            flags |= HOST_STATE_HIGH_POWER
-        if settings.tx_allowed:
-            flags |= HOST_STATE_TX_ALLOWED
-        if settings.rssi:
-            flags |= HOST_STATE_RSSI_ENABLED
-        if settings.filter_pre:
-            flags |= HOST_STATE_FILTER_PRE
-        if settings.filter_high:
-            flags |= HOST_STATE_FILTER_HIGH
-        if settings.filter_low:
-            flags |= HOST_STATE_FILTER_LOW
-        # Preserve PTT-requested / rx-open-after-state bits that live outside
-        # of Kv4pSettings.
-        preserved = self._flags & (HOST_STATE_PTT_REQUESTED | HOST_STATE_RX_AUDIO_OPEN | HOST_STATE_ENABLE_STATUS_REPORTS)
-        return flags | preserved
+    def _seed_settings_locked(self, state: DeviceState) -> None:
+        """Seed radio settings from the firmware's actual tuned state at boot."""
+        self._freq_rx = state.freq_rx
+        self._freq_tx = state.freq_tx
+        self._bw = state.bw
+        self._squelch = state.squelch
+        self._ctcss_rx = state.ctcss_rx
+        self._ctcss_tx = state.ctcss_tx
 
     def _log_device_status(self, state: DeviceState) -> None:
         key = (
@@ -294,7 +365,7 @@ class DeviceStateTracker:
             "open" if state.sql_open else "closed",
             state.freq_rx,
             state.freq_tx,
-            "25k" if state.bw == DRA818_25K else "12.5k",
+            dra818_to_bandwidth(state.bw),
             state.squelch,
             state.ctcss_rx,
             state.ctcss_tx,

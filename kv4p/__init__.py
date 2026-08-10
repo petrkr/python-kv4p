@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import replace
 
 from kv4p.constants.kiss import KISS_CMD_DATA, KISS_CMD_SETHARDWARE
+from kv4p.constants.messages import (
+    HOST_STATE_FILTER_HIGH,
+    HOST_STATE_FILTER_LOW,
+    HOST_STATE_FILTER_PRE,
+    HOST_STATE_HIGH_POWER,
+    HOST_STATE_RSSI_ENABLED,
+    HOST_STATE_TX_ALLOWED,
+)
 from kv4p.constants.vendor import (
+    COMMAND_AUDIO_ADPCM,
+    COMMAND_AUDIO_OPUS,
     COMMAND_DEBUG_DEBUG,
     COMMAND_DEBUG_ERROR,
     COMMAND_DEBUG_INFO,
@@ -16,20 +25,17 @@ from kv4p.constants.vendor import (
     COMMAND_DEVICE_STATE,
     COMMAND_HELLO,
     COMMAND_HOST_DESIRED_STATE,
-    COMMAND_RX_AUDIO,
-    COMMAND_RX_AUDIO_ADPCM,
     COMMAND_WINDOW_UPDATE,
     KV4P_PROTOCOL_VERSION,
     KV4P_VENDOR_HEADER_LEN,
     KV4P_VENDOR_PREFIX,
 )
 from kv4p.flow_control import FlowControlWindow
-from kv4p.messages.desired_state import HostDesiredState
+from kv4p.messages.desired_state import HostDesiredState, bandwidth_to_dra818
 from kv4p.messages.device_state import DeviceState
 from kv4p.messages.hello import Hello
 from kv4p.messages.window_update import WindowUpdate
 from kv4p.protocol.kiss import encode_kiss_frame
-from kv4p.settings import Kv4pSettings
 from kv4p.state_tracker import DeviceStateTracker
 from kv4p.transports import Kv4pTransport
 from kv4p.transports.serial import Kv4pSerialTransport
@@ -95,8 +101,8 @@ class Kv4pRadio:
             COMMAND_DEBUG_TRACE: self._handle_debug,
             COMMAND_HELLO: self._handle_hello,
             COMMAND_DEVICE_STATE: self._handle_device_state,
-            COMMAND_RX_AUDIO: self._handle_rx_audio,
-            COMMAND_RX_AUDIO_ADPCM: self._handle_rx_audio,
+            COMMAND_AUDIO_OPUS: self._handle_rx_audio,
+            COMMAND_AUDIO_ADPCM: self._handle_rx_audio,
             COMMAND_WINDOW_UPDATE: self._handle_window_update,
         }
 
@@ -150,11 +156,12 @@ class Kv4pRadio:
             raise TimeoutError("timed out waiting for HELLO after reset")
 
     # -- configuration -----------------------------------------------------------
-
-    def configure(self, settings: Kv4pSettings) -> None:
-        """Send a full HostDesiredState snapshot derived from `settings`."""
-        self._require_ready()
-        self._tracker.apply_settings(settings)
+    #
+    # All settings below are seeded from the DeviceState carried in HELLO —
+    # the firmware always reports its actual tuned state there, right after
+    # open()/reset() forces a reboot. Reading a property never involves I/O;
+    # each set_*() call sends a full HostDesiredState snapshot (the protocol
+    # always wants the complete state, not a delta).
 
     def set_frequency(self, *, rx: float | None = None, tx: float | None = None) -> None:
         """Update RX/TX frequency, validated against the range reported in HELLO."""
@@ -166,12 +173,48 @@ class Kv4pRadio:
                     f"frequency {value} outside radio range "
                     f"{version.min_radio_freq}-{version.max_radio_freq}"
                 )
-        changes = {}
-        if rx is not None:
-            changes["rx_freq"] = rx
-        if tx is not None:
-            changes["tx_freq"] = tx
-        self._tracker.apply_settings(replace(self._tracker.settings, **changes))
+        self._tracker.set_frequency(rx=rx, tx=tx)
+
+    def set_bandwidth(self, bandwidth: str) -> None:
+        """Update bandwidth ("12.5k" or "25k")."""
+        self._require_ready()
+        self._tracker.set_bandwidth(bandwidth_to_dra818(bandwidth))
+
+    def set_squelch(self, squelch: int) -> None:
+        """Update squelch level."""
+        self._require_ready()
+        self._tracker.set_squelch(squelch)
+
+    def set_ctcss(self, *, rx: int | None = None, tx: int | None = None) -> None:
+        """Update RX/TX CTCSS tone."""
+        self._require_ready()
+        self._tracker.set_ctcss(rx=rx, tx=tx)
+
+    def set_high_power(self, enabled: bool) -> None:
+        """Enable/disable high power output."""
+        self._require_ready()
+        self._tracker.set_flag(HOST_STATE_HIGH_POWER, enabled)
+
+    def set_tx_allowed(self, enabled: bool) -> None:
+        """Enable/disable TX capability."""
+        self._require_ready()
+        self._tracker.set_flag(HOST_STATE_TX_ALLOWED, enabled)
+
+    def set_rssi(self, enabled: bool) -> None:
+        """Enable/disable RSSI reporting."""
+        self._require_ready()
+        self._tracker.set_flag(HOST_STATE_RSSI_ENABLED, enabled)
+
+    def set_filters(self, *, pre: bool | None = None, high: bool | None = None, low: bool | None = None) -> None:
+        """Enable/disable the pre-emphasis/high-pass/low-pass audio filters."""
+        self._require_ready()
+        for flag, value in (
+            (HOST_STATE_FILTER_PRE, pre),
+            (HOST_STATE_FILTER_HIGH, high),
+            (HOST_STATE_FILTER_LOW, low),
+        ):
+            if value is not None:
+                self._tracker.set_flag(flag, value)
 
     def set_ptt(self, enabled: bool) -> None:
         """Set PTT requested state."""
@@ -211,6 +254,54 @@ class Kv4pRadio:
     @property
     def mode(self) -> int | None:
         return self._tracker.mode
+
+    @property
+    def freq_rx(self) -> float:
+        return self._tracker.freq_rx
+
+    @property
+    def freq_tx(self) -> float:
+        return self._tracker.freq_tx
+
+    @property
+    def bandwidth(self) -> str:
+        return self._tracker.bandwidth
+
+    @property
+    def squelch(self) -> int:
+        return self._tracker.squelch
+
+    @property
+    def ctcss_rx(self) -> int:
+        return self._tracker.ctcss_rx
+
+    @property
+    def ctcss_tx(self) -> int:
+        return self._tracker.ctcss_tx
+
+    @property
+    def high_power(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_HIGH_POWER)
+
+    @property
+    def tx_allowed(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_TX_ALLOWED)
+
+    @property
+    def rssi(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_RSSI_ENABLED)
+
+    @property
+    def filter_pre(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_FILTER_PRE)
+
+    @property
+    def filter_high(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_FILTER_HIGH)
+
+    @property
+    def filter_low(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_FILTER_LOW)
 
     # -- incoming frame routing -----------------------------------------------
 
