@@ -70,6 +70,7 @@ class Kv4pRadio:
         status_reports: bool = True,
         on_rx_audio: Callable[[bytes], None] | None = None,
         on_sql: Callable[[bool], None] | None = None,
+        on_ax25_frame: Callable[[bytes], None] | None = None,
     ) -> None:
         self._transport = transport
         self._flow = FlowControlWindow()
@@ -81,6 +82,7 @@ class Kv4pRadio:
             on_sql=on_sql,
         )
         self._ptt = PttController(self._tracker)
+        self._on_ax25_frame = on_ax25_frame
         self._open = False
 
         self._tx_audio_throttle = Throttle(burst=3, every=100)
@@ -188,13 +190,13 @@ class Kv4pRadio:
             logger.info("tx audio command=0x%02x bytes=%d", command, len(payload))
         self._send_vendor(command, payload, flow_controlled=True)
 
-    def send_kiss_data(self, payload: bytes) -> None:
-        """Send a raw KISS DATA frame for diagnostics."""
+    def send_ax25_frame(self, payload: bytes) -> None:
+        """Send a raw AX.25 frame over the KISS data port."""
         frame_size = len(encode_kiss_frame(KISS_CMD_DATA, payload))
         if not self._flow.claim(frame_size):
-            logger.warning("drop KISS DATA frame; flow-control window exhausted")
+            logger.warning("drop AX.25 frame; flow-control window exhausted")
             return
-        logger.info("kiss data tx bytes=%d", len(payload))
+        logger.info("ax25 frame tx bytes=%d", len(payload))
         self._transport.write_frame(KISS_CMD_DATA, payload)
 
     def flush(self) -> None:
@@ -222,7 +224,12 @@ class Kv4pRadio:
     # -- incoming frame routing -----------------------------------------------
 
     def _on_kiss_frame(self, kiss_command: int, payload: bytes) -> None:
-        if (kiss_command & 0x0F) != KISS_CMD_SETHARDWARE:
+        port_command = kiss_command & 0x0F
+        if port_command == KISS_CMD_DATA:
+            self._handle_ax25_frame(payload)
+            return
+
+        if port_command != KISS_CMD_SETHARDWARE:
             logger.debug("ignore KISS command=0x%02x bytes=%d", kiss_command, len(payload))
             return
 
@@ -240,6 +247,11 @@ class Kv4pRadio:
             handler(body)
         except Exception:
             logger.exception("failed to handle KV4P command=0x%02x bytes=%d", command, len(body))
+
+    def _handle_ax25_frame(self, payload: bytes) -> None:
+        logger.info("ax25 frame rx bytes=%d", len(payload))
+        if self._on_ax25_frame is not None:
+            self._on_ax25_frame(payload)
 
     def _handle_debug(self, payload: bytes) -> None:
         text = payload.decode("utf-8", errors="replace").strip()
