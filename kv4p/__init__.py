@@ -187,12 +187,8 @@ class Kv4pRadio:
 
     def send_ax25_frame(self, payload: bytes) -> None:
         """Send a raw AX.25 frame over the KISS data port."""
-        frame_size = len(encode_kiss_frame(KISS_CMD_DATA, payload))
-        if not self._flow.claim(frame_size):
-            logger.warning("drop AX.25 frame; flow-control window exhausted")
-            return
         logger.debug("ax25 frame tx bytes=%d", len(payload))
-        self._transport.write_frame(KISS_CMD_DATA, payload)
+        self._claim_and_write(KISS_CMD_DATA, payload, flow_controlled=True)
 
     def flush(self) -> None:
         """Flush pending serial writes."""
@@ -280,13 +276,15 @@ class Kv4pRadio:
         self._send_vendor(COMMAND_HOST_DESIRED_STATE, state.to_bytes(), flow_controlled=False)
 
     def _send_vendor(self, command: int, payload: bytes = b"", *, flow_controlled: bool) -> None:
-        vendor_payload = encode_vendor_payload(command, payload)
+        self._claim_and_write(KISS_CMD_SETHARDWARE, encode_vendor_payload(command, payload), flow_controlled=flow_controlled)
+
+    def _claim_and_write(self, kiss_command: int, payload: bytes, *, flow_controlled: bool) -> None:
         if flow_controlled:
-            frame_size = len(encode_kiss_frame(KISS_CMD_SETHARDWARE, vendor_payload))
+            frame_size = len(encode_kiss_frame(kiss_command, payload))
             if not self._flow.claim(frame_size):
-                logger.warning("drop command=0x%02x frame; flow-control window exhausted", command)
+                logger.warning("drop KISS command=0x%02x frame; flow-control window exhausted", kiss_command)
                 return
-        self._transport.write_frame(KISS_CMD_SETHARDWARE, vendor_payload)
+        self._transport.write_frame(kiss_command, payload)
 
     def _require_ready(self) -> None:
         if self._transport_error is not None:
