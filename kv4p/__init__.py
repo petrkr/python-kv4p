@@ -30,7 +30,6 @@ from kv4p.messages.device_state import DeviceState
 from kv4p.messages.hello import Hello
 from kv4p.messages.window_update import WindowUpdate
 from kv4p.protocol.kiss import encode_kiss_frame
-from kv4p.ptt import PttController
 from kv4p.settings import Kv4pSettings
 from kv4p.state_tracker import DeviceStateTracker
 from kv4p.transports import Kv4pTransport
@@ -81,7 +80,6 @@ class Kv4pRadio:
             on_rx_audio=on_rx_audio,
             on_sql=on_sql,
         )
-        self._ptt = PttController(self._tracker)
         self._on_ax25_frame = on_ax25_frame
         self._open = False
 
@@ -128,7 +126,6 @@ class Kv4pRadio:
         if not self._open:
             return
         logger.info("radio close")
-        self._ptt.cancel()
         try:
             if self.is_ready:
                 self.set_ptt(False)
@@ -178,7 +175,7 @@ class Kv4pRadio:
     def set_ptt(self, enabled: bool) -> None:
         """Set PTT requested state."""
         self._require_ready()
-        self._ptt.set(enabled)
+        self._tracker.request_ptt(enabled)
 
     # -- data path ---------------------------------------------------------------
 

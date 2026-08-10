@@ -48,11 +48,10 @@ Layout
     kv4p/
       __init__.py        # Kv4pRadio, Kv4pSettings, vendor encode/decode
       settings.py         # Kv4pSettings
-      state_tracker.py      # DeviceStateTracker: handshake, device state, HostDesiredState
-      ptt.py                 # PttController: PTT request/retry policy
-      flow_control.py          # FlowControlWindow: HTTP/2-like flow control
-      logging_utils.py           # Throttle / ChangeGate
-      constants/                   # numeric/bit constants (kiss, vendor, messages)
-      protocol/                     # wire framing: kiss.py, ax25.py
-      messages/                      # one file per KV4P payload (dataclasses)
-      transports/                     # Kv4pTransport interface, serial + dummy implementations
+      state_tracker.py      # DeviceStateTracker: handshake, device state, HostDesiredState, PTT
+      flow_control.py         # FlowControlWindow: HTTP/2-like flow control
+      logging_utils.py          # Throttle / ChangeGate
+      constants/                  # numeric/bit constants (kiss, vendor, messages)
+      protocol/                    # wire framing: kiss.py, ax25.py
+      messages/                     # one file per KV4P payload (dataclasses)
+      transports/                    # Kv4pTransport interface, serial + dummy implementations
