@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
-from ..constants.messages import DEVICE_STATE_SQUELCHED
+from kv4p.constants.messages import DEVICE_STATE_SQUELCHED
 
 _DEVICE_STATE = struct.Struct("<IiHBffBBBcBBB")
 DEVICE_STATE_SIZE = _DEVICE_STATE.size

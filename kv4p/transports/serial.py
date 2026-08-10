@@ -7,8 +7,8 @@ import threading
 import time
 from collections.abc import Callable
 
-from ..protocol.kiss import KissParser, encode_kiss_frame
-from . import Kv4pTransport
+from kv4p.protocol.kiss import KissParser, encode_kiss_frame
+from kv4p.transports import Kv4pTransport
 
 logger = logging.getLogger(__name__)
 

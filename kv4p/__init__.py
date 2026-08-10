@@ -6,8 +6,8 @@ import logging
 from collections.abc import Callable
 from dataclasses import replace
 
-from .constants.kiss import KISS_CMD_DATA, KISS_CMD_SETHARDWARE
-from .constants.vendor import (
+from kv4p.constants.kiss import KISS_CMD_DATA, KISS_CMD_SETHARDWARE
+from kv4p.constants.vendor import (
     COMMAND_DEBUG_DEBUG,
     COMMAND_DEBUG_ERROR,
     COMMAND_DEBUG_INFO,
@@ -23,18 +23,18 @@ from .constants.vendor import (
     KV4P_VENDOR_HEADER_LEN,
     KV4P_VENDOR_PREFIX,
 )
-from .flow_control import FlowControlWindow
-from .logging_utils import Throttle
-from .messages.desired_state import HostDesiredState
-from .messages.device_state import DeviceState
-from .messages.hello import Hello
-from .messages.window_update import WindowUpdate
-from .protocol.kiss import encode_kiss_frame
-from .ptt import PttController
-from .settings import Kv4pSettings
-from .state_tracker import DeviceStateTracker
-from .transports import Kv4pTransport
-from .transports.serial import Kv4pSerialTransport
+from kv4p.flow_control import FlowControlWindow
+from kv4p.logging_utils import Throttle
+from kv4p.messages.desired_state import HostDesiredState
+from kv4p.messages.device_state import DeviceState
+from kv4p.messages.hello import Hello
+from kv4p.messages.window_update import WindowUpdate
+from kv4p.protocol.kiss import encode_kiss_frame
+from kv4p.ptt import PttController
+from kv4p.settings import Kv4pSettings
+from kv4p.state_tracker import DeviceStateTracker
+from kv4p.transports import Kv4pTransport
+from kv4p.transports.serial import Kv4pSerialTransport
 
 logger = logging.getLogger(__name__)
 

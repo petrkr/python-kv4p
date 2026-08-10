@@ -6,7 +6,7 @@ import logging
 import threading
 from collections.abc import Callable
 
-from .constants.messages import (
+from kv4p.constants.messages import (
     DEVICE_STATE_PHYS_PTT_DOWN,
     DRA818_25K,
     HOST_STATE_ENABLE_STATUS_REPORTS,
@@ -20,12 +20,12 @@ from .constants.messages import (
     HOST_STATE_RX_AUDIO_OPEN,
     HOST_STATE_TX_ALLOWED,
 )
-from .constants.vendor import COMMAND_HOST_TX_AUDIO
-from .logging_utils import ChangeGate
-from .messages.desired_state import HostDesiredState, bandwidth_to_dra818
-from .messages.device_state import DeviceState
-from .messages.hello import Hello
-from .settings import Kv4pSettings
+from kv4p.constants.vendor import COMMAND_HOST_TX_AUDIO
+from kv4p.logging_utils import ChangeGate
+from kv4p.messages.desired_state import HostDesiredState, bandwidth_to_dra818
+from kv4p.messages.device_state import DeviceState
+from kv4p.messages.hello import Hello
+from kv4p.settings import Kv4pSettings
 
 logger = logging.getLogger(__name__)
 

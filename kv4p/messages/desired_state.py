@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
-from ..constants.messages import DRA818_12K5, DRA818_25K
+from kv4p.constants.messages import DRA818_12K5, DRA818_25K
 
 _HOST_DESIRED_STATE = struct.Struct("<IiHBffBBB")
 

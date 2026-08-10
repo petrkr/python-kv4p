@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .device_state import DEVICE_STATE_SIZE, DeviceState
-from .version import Version
+from kv4p.messages.device_state import DEVICE_STATE_SIZE, DeviceState
+from kv4p.messages.version import Version
 
 
 @dataclass(frozen=True, slots=True)

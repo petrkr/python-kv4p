@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from ..constants.kiss import KISS_FEND, KISS_FESC, KISS_TFEND, KISS_TFESC
+from kv4p.constants.kiss import KISS_FEND, KISS_FESC, KISS_TFEND, KISS_TFESC
 
 logger = logging.getLogger(__name__)
 

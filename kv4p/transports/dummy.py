@@ -7,9 +7,9 @@ import struct
 import threading
 from collections.abc import Callable
 
-from ..constants.kiss import KISS_CMD_SETHARDWARE
-from ..constants.vendor import COMMAND_HELLO, KV4P_PROTOCOL_VERSION, KV4P_VENDOR_PREFIX
-from . import Kv4pTransport
+from kv4p.constants.kiss import KISS_CMD_SETHARDWARE
+from kv4p.constants.vendor import COMMAND_HELLO, KV4P_PROTOCOL_VERSION, KV4P_VENDOR_PREFIX
+from kv4p.transports import Kv4pTransport
 
 logger = logging.getLogger(__name__)
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import threading
 
-from .constants.messages import HOST_STATE_PTT_REQUESTED
-from .state_tracker import DeviceStateTracker
+from kv4p.constants.messages import HOST_STATE_PTT_REQUESTED
+from kv4p.state_tracker import DeviceStateTracker
 
 logger = logging.getLogger(__name__)
 
