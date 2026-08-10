@@ -256,6 +256,11 @@ class Kv4pRadio:
         return self._tracker.mode
 
     @property
+    def codec(self) -> int:
+        """Audio codec command in use: COMMAND_AUDIO_OPUS or COMMAND_AUDIO_ADPCM."""
+        return self._tracker.tx_audio_command
+
+    @property
     def freq_rx(self) -> float:
         return self._tracker.freq_rx
 
