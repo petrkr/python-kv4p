@@ -24,7 +24,6 @@ from kv4p.constants.vendor import (
     KV4P_VENDOR_PREFIX,
 )
 from kv4p.flow_control import FlowControlWindow
-from kv4p.logging_utils import Throttle
 from kv4p.messages.desired_state import HostDesiredState
 from kv4p.messages.device_state import DeviceState
 from kv4p.messages.hello import Hello
@@ -87,9 +86,6 @@ class Kv4pRadio:
         self._on_ax25_frame = on_ax25_frame
         self._open = False
         self._transport_error: Exception | None = None
-
-        self._tx_audio_throttle = Throttle(burst=3, every=100)
-        self._window_update_throttle = Throttle(burst=10, every=100)
 
         self._dispatch: dict[int, Callable[[bytes], None]] = {
             COMMAND_DEBUG_INFO: self._handle_debug,
@@ -187,10 +183,7 @@ class Kv4pRadio:
     def send_tx_audio(self, payload: bytes) -> None:
         """Send KV4P-native TX audio payload."""
         self._require_ready()
-        command = self._tracker.tx_audio_command
-        if self._tx_audio_throttle.should_log():
-            logger.info("tx audio command=0x%02x bytes=%d", command, len(payload))
-        self._send_vendor(command, payload, flow_controlled=True)
+        self._send_vendor(self._tracker.tx_audio_command, payload, flow_controlled=True)
 
     def send_ax25_frame(self, payload: bytes) -> None:
         """Send a raw AX.25 frame over the KISS data port."""
@@ -198,7 +191,7 @@ class Kv4pRadio:
         if not self._flow.claim(frame_size):
             logger.warning("drop AX.25 frame; flow-control window exhausted")
             return
-        logger.info("ax25 frame tx bytes=%d", len(payload))
+        logger.debug("ax25 frame tx bytes=%d", len(payload))
         self._transport.write_frame(KISS_CMD_DATA, payload)
 
     def flush(self) -> None:
@@ -251,7 +244,7 @@ class Kv4pRadio:
             logger.exception("failed to handle KV4P command=0x%02x bytes=%d", command, len(body))
 
     def _handle_ax25_frame(self, payload: bytes) -> None:
-        logger.info("ax25 frame rx bytes=%d", len(payload))
+        logger.debug("ax25 frame rx bytes=%d", len(payload))
         if self._on_ax25_frame is not None:
             self._on_ax25_frame(payload)
 
@@ -274,8 +267,7 @@ class Kv4pRadio:
     def _handle_window_update(self, payload: bytes) -> None:
         size = WindowUpdate.from_bytes(payload).size
         self._flow.add(size)
-        if self._window_update_throttle.should_log():
-            logger.info("window update size=%d", size)
+        logger.debug("window update size=%d", size)
 
     def _on_transport_error(self, exc: Exception) -> None:
         """Called from the transport's background thread when it dies unexpectedly."""

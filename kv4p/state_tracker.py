@@ -21,7 +21,6 @@ from kv4p.constants.messages import (
     HOST_STATE_TX_ALLOWED,
 )
 from kv4p.constants.vendor import COMMAND_HOST_TX_AUDIO
-from kv4p.logging_utils import ChangeGate
 from kv4p.messages.desired_state import HostDesiredState, bandwidth_to_dra818
 from kv4p.messages.device_state import DeviceState
 from kv4p.messages.hello import Hello
@@ -67,8 +66,7 @@ class DeviceStateTracker:
         self._last_sql_open: bool | None = None
         self._last_physical_ptt: bool | None = None
         self._rx_open_sent_after_state = False
-
-        self._status_gate = ChangeGate()
+        self._last_status_key: tuple[object, ...] | None = None
 
     # -- handshake / incoming state -----------------------------------------
 
@@ -283,8 +281,9 @@ class DeviceStateTracker:
             state.radio_module_status,
             state.latest_rssi if state.mode == 0 else None,
         )
-        if not self._status_gate.changed(key):
+        if key == self._last_status_key:
             return
+        self._last_status_key = key
         logger.info(
             (
                 "radio status mode=%s sql=%s rx=%.5f tx=%.5f bw=%s "
