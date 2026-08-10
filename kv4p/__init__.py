@@ -58,6 +58,10 @@ class RadioNotReadyError(RuntimeError):
     """Raised when an operation requires HELLO to have been received but it hasn't."""
 
 
+class RadioTransportError(RadioNotReadyError):
+    """Raised when an operation is attempted after the transport failed unexpectedly."""
+
+
 class Kv4pRadio:
     """KV4P-HT radio side of the bridge."""
 
@@ -82,6 +86,7 @@ class Kv4pRadio:
         )
         self._on_ax25_frame = on_ax25_frame
         self._open = False
+        self._transport_error: Exception | None = None
 
         self._tx_audio_throttle = Throttle(burst=3, every=100)
         self._window_update_throttle = Throttle(burst=10, every=100)
@@ -116,7 +121,8 @@ class Kv4pRadio:
         """Open the transport, reset the radio, and wait for HELLO."""
         if self._open:
             return
-        self._transport.open(self._on_kiss_frame)
+        self._transport_error = None
+        self._transport.open(self._on_kiss_frame, self._on_transport_error)
         self._open = True
         logger.info("radio open")
         self.reset(hello_timeout=hello_timeout)
@@ -157,13 +163,12 @@ class Kv4pRadio:
     def set_frequency(self, *, rx: float | None = None, tx: float | None = None) -> None:
         """Update RX/TX frequency, validated against the range reported in HELLO."""
         self._require_ready()
-        hello = self._tracker.hello
-        assert hello is not None
+        version = self._tracker.hello.version
         for value in (v for v in (rx, tx) if v is not None):
-            if not (hello.version.min_radio_freq <= value <= hello.version.max_radio_freq):
+            if not (version.min_radio_freq <= value <= version.max_radio_freq):
                 raise ValueError(
                     f"frequency {value} outside radio range "
-                    f"{hello.version.min_radio_freq}-{hello.version.max_radio_freq}"
+                    f"{version.min_radio_freq}-{version.max_radio_freq}"
                 )
         changes = {}
         if rx is not None:
@@ -208,7 +213,7 @@ class Kv4pRadio:
 
     @property
     def is_ready(self) -> bool:
-        return self._tracker.hello is not None
+        return self._transport_error is None and self._tracker.hello is not None
 
     @property
     def physical_ptt(self) -> bool:
@@ -272,6 +277,11 @@ class Kv4pRadio:
         if self._window_update_throttle.should_log():
             logger.info("window update size=%d", size)
 
+    def _on_transport_error(self, exc: Exception) -> None:
+        """Called from the transport's background thread when it dies unexpectedly."""
+        logger.error("transport error: %s", exc)
+        self._transport_error = exc
+
     # -- outgoing frames -------------------------------------------------------
 
     def _send_desired_state(self, state: HostDesiredState) -> None:
@@ -287,5 +297,7 @@ class Kv4pRadio:
         self._transport.write_frame(KISS_CMD_SETHARDWARE, vendor_payload)
 
     def _require_ready(self) -> None:
+        if self._transport_error is not None:
+            raise RadioTransportError(f"transport failed: {self._transport_error}") from self._transport_error
         if not self.is_ready:
             raise RadioNotReadyError("radio has not completed the HELLO handshake yet")

@@ -31,12 +31,18 @@ class Kv4pSerialTransport(Kv4pTransport):
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._write_lock = threading.Lock()
+        self._on_error: Callable[[Exception], None] | None = None
 
-    def open(self, on_frame: Callable[[int, bytes], None]) -> None:
+    def open(
+        self,
+        on_frame: Callable[[int, bytes], None],
+        on_error: Callable[[Exception], None] | None = None,
+    ) -> None:
         """Open serial port and start the RX thread."""
         import serial
 
         self._parser = KissParser(on_frame)
+        self._on_error = on_error
         self._serial = serial.Serial(self._device, self._baudrate, timeout=0.2)
         self._serial.rts = False
         self._serial.dtr = False
@@ -107,11 +113,12 @@ class Kv4pSerialTransport(Kv4pTransport):
         while not self._stop.is_set():
             try:
                 data = self._serial.read(512)
-            except Exception:
+            except Exception as exc:
                 if not self._stop.is_set():
                     logger.exception("serial read failed")
+                    if self._on_error is not None:
+                        self._on_error(exc)
                 return
 
             if data:
-                assert self._parser is not None
                 self._parser.feed(data)

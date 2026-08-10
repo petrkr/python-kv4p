@@ -13,8 +13,18 @@ class Kv4pTransport:
     just be a breaking change waiting to happen. Subclass and implement.
     """
 
-    def open(self, on_frame: Callable[[int, bytes], None]) -> None:
-        """Open the transport and start delivering incoming KISS frames to `on_frame`."""
+    def open(
+        self,
+        on_frame: Callable[[int, bytes], None],
+        on_error: Callable[[Exception], None] | None = None,
+    ) -> None:
+        """Open the transport and start delivering incoming KISS frames to `on_frame`.
+
+        `on_error` is called (from the transport's own background thread, if it
+        has one) when the connection is lost unexpectedly, e.g. a disconnected
+        USB cable or a device reboot mid-read. It is not called on a normal
+        `close()`.
+        """
         raise NotImplementedError
 
     def close(self) -> None:

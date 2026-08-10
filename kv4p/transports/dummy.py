@@ -38,7 +38,11 @@ class DummyTransport(Kv4pTransport):
         self._on_frame: Callable[[int, bytes], None] | None = None
         self.written: list[tuple[int, bytes]] = []
 
-    def open(self, on_frame: Callable[[int, bytes], None]) -> None:
+    def open(
+        self,
+        on_frame: Callable[[int, bytes], None],
+        on_error: Callable[[Exception], None] | None = None,
+    ) -> None:
         self._on_frame = on_frame
         logger.info("dummy transport open")
 
