@@ -16,7 +16,7 @@ from kv4p.constants.messages import (
 )
 from kv4p.constants.vendor import COMMAND_AUDIO_ADPCM, COMMAND_AUDIO_OPUS
 from kv4p.messages.desired_state import HostDesiredState, dra818_to_bandwidth
-from kv4p.messages.device_state import DeviceState
+from kv4p.messages.device_state import DeviceState, RadioMode
 from kv4p.messages.hello import Hello
 
 logger = logging.getLogger(__name__)
@@ -27,16 +27,6 @@ logger = logging.getLogger(__name__)
 # based on "17 is confirmed 0x07" and must be revisited once a newer firmware
 # version's actual behavior is known.
 _OPUS_MAX_FW = 17
-
-
-def _mode_name(mode: int) -> str:
-    if mode == 0:
-        return "TX"
-    if mode == 1:
-        return "RX"
-    if mode == 2:
-        return "STOPPED"
-    return f"UNKNOWN({mode})"
 
 
 class DeviceStateTracker:
@@ -297,7 +287,7 @@ class DeviceStateTracker:
             return bool(self._device_state.flags & DEVICE_STATE_PHYS_PTT_DOWN)
 
     @property
-    def mode(self) -> int | None:
+    def mode(self) -> RadioMode | None:
         with self._lock:
             if self._device_state is None:
                 return None
@@ -327,7 +317,7 @@ class DeviceStateTracker:
             state.ctcss_rx,
             state.ctcss_tx,
             state.radio_module_status,
-            state.latest_rssi if state.mode == 0 else None,
+            state.latest_rssi if state.mode == RadioMode.TX else None,
         )
         if key == self._last_status_key:
             return
@@ -338,7 +328,7 @@ class DeviceStateTracker:
                 "squelch=%d ctcss_rx=%d ctcss_tx=%d flags=0x%04x "
                 "applied_sequence=%d error=%d rssi=%d module=%s"
             ),
-            _mode_name(state.mode),
+            state.mode.name,
             "open" if state.sql_open else "closed",
             state.freq_rx,
             state.freq_tx,

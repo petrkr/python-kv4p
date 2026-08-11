@@ -4,11 +4,25 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass
+from enum import IntEnum
 
 from kv4p.constants.messages import DEVICE_STATE_SQUELCHED
 
 _DEVICE_STATE = struct.Struct("<IiHBffBBBcBBB")
 DEVICE_STATE_SIZE = _DEVICE_STATE.size
+
+
+class RadioMode(IntEnum):
+    """Firmware radio mode, as reported in ``DeviceState.mode``."""
+
+    TX = 0
+    RX = 1
+    STOPPED = 2
+    UNKNOWN = -1
+
+    @classmethod
+    def _missing_(cls, value: object) -> RadioMode:
+        return cls.UNKNOWN
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +39,7 @@ class DeviceState:
     squelch: int
     ctcss_rx: int
     radio_module_status: str
-    mode: int  # 0=TX, 1=RX, 2=STOPPED
+    mode: RadioMode
     last_error: int
     latest_rssi: int
 
@@ -46,7 +60,7 @@ class DeviceState:
             squelch=values[7],
             ctcss_rx=values[8],
             radio_module_status=values[9].decode("ascii", errors="replace"),
-            mode=values[10],
+            mode=RadioMode(values[10]),
             last_error=values[11],
             latest_rssi=values[12],
         )

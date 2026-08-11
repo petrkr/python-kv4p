@@ -36,7 +36,7 @@ from kv4p.constants.vendor import (
 )
 from kv4p.flow_control import FlowControlWindow
 from kv4p.messages.desired_state import HostDesiredState, bandwidth_to_dra818
-from kv4p.messages.device_state import DeviceState
+from kv4p.messages.device_state import DeviceState, RadioMode
 from kv4p.messages.hello import Hello
 from kv4p.messages.window_update import WindowUpdate
 from kv4p.protocol.kiss import encode_kiss_frame
@@ -277,7 +277,7 @@ class Kv4pRadio:
         return self._tracker.physical_ptt
 
     @property
-    def mode(self) -> int | None:
+    def mode(self) -> RadioMode | None:
         return self._tracker.mode
 
     @property

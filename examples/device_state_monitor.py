@@ -20,12 +20,8 @@ def on_device_state(state):
     tx_allowed = bool(state.flags & HOST_STATE_TX_ALLOWED)
     rx_audio = bool(state.flags & HOST_STATE_RX_AUDIO_OPEN)
 
-    # Mode names
-    mode_names = {0: "TX", 1: "RX", 2: "STOPPED"}
-    mode_name = mode_names.get(state.mode, f"UNKNOWN({state.mode})")
-
     print(f"[State] "
-          f"Mode: {mode_name}, "
+          f"Mode: {state.mode.name}, "
           f"Freq RX: {state.freq_rx:.3f} MHz, "
           f"TX: {state.freq_tx:.3f} MHz, "
           f"Squelch: {state.squelch}, "
