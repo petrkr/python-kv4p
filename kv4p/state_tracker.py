@@ -44,10 +44,14 @@ class DeviceStateTracker:
         send_desired_state: Callable[[HostDesiredState], None],
         on_rx_audio: Callable[[bytes], None] | None = None,
         on_sql: Callable[[bool], None] | None = None,
+        on_phy_ptt: Callable[[bool], None] | None = None,
+        on_tx_active: Callable[[bool], None] | None = None,
     ) -> None:
         self._send_desired_state = send_desired_state
         self._on_rx_audio = on_rx_audio
         self._on_sql = on_sql
+        self._on_phy_ptt = on_phy_ptt
+        self._on_tx_active = on_tx_active
 
         self._lock = threading.RLock()
         self._hello_event = threading.Event()
@@ -66,7 +70,8 @@ class DeviceStateTracker:
         self._ctcss_tx = 0
 
         self._last_sql_open: bool | None = None
-        self._last_physical_ptt: bool | None = None
+        self._last_phy_ptt: bool | None = None
+        self._last_tx_active: bool | None = None
         self._last_status_key: tuple[object, ...] | None = None
 
     # -- handshake / incoming state -----------------------------------------
@@ -116,10 +121,19 @@ class DeviceStateTracker:
             if self._on_sql is not None:
                 self._on_sql(sql_open)
 
-        physical_ptt = bool(state.flags & DEVICE_STATE_PHYS_PTT_DOWN)
-        if physical_ptt != self._last_physical_ptt:
-            self._last_physical_ptt = physical_ptt
-            logger.info("physical ptt %s", "down" if physical_ptt else "up")
+        phy_ptt = bool(state.flags & DEVICE_STATE_PHYS_PTT_DOWN)
+        if phy_ptt != self._last_phy_ptt:
+            self._last_phy_ptt = phy_ptt
+            logger.info("physical ptt %s", "down" if phy_ptt else "up")
+            if self._on_phy_ptt is not None:
+                self._on_phy_ptt(phy_ptt)
+
+        tx_active = bool(state.flags & DEVICE_STATE_TX_ACTIVE)
+        if tx_active != self._last_tx_active:
+            self._last_tx_active = tx_active
+            logger.info("tx active %s", tx_active)
+            if self._on_tx_active is not None:
+                self._on_tx_active(tx_active)
 
     def on_rx_audio(self, payload: bytes) -> None:
         """Handle an RX audio payload."""
@@ -189,7 +203,7 @@ class DeviceStateTracker:
         state = self._build_desired_state_locked()
         # Release the lock before handing off to I/O: the caller's send callback
         # may block on flow control / serial writes and must not hold up readers
-        # of physical_ptt/mode from other threads.
+        # of phy_ptt/mode from other threads.
         self._lock.release()
         try:
             self._send_desired_state(state)
@@ -280,11 +294,25 @@ class DeviceStateTracker:
             return self._tx_audio_command
 
     @property
-    def physical_ptt(self) -> bool:
+    def phy_ptt(self) -> bool:
         with self._lock:
             if self._device_state is None:
                 return False
             return bool(self._device_state.flags & DEVICE_STATE_PHYS_PTT_DOWN)
+
+    @property
+    def tx_active(self) -> bool:
+        with self._lock:
+            if self._device_state is None:
+                return False
+            return bool(self._device_state.flags & DEVICE_STATE_TX_ACTIVE)
+
+    @property
+    def sql_open(self) -> bool:
+        with self._lock:
+            if self._device_state is None:
+                return False
+            return self._device_state.sql_open
 
     @property
     def mode(self) -> RadioMode | None:

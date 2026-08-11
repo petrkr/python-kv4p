@@ -152,6 +152,60 @@ class TestRadioWithDummy:
         finally:
             radio.disconnect()
 
+    def test_phy_ptt_property(self):
+        """Test that phy_ptt reflects the last known physical PTT state without a callback."""
+        from kv4p.constants.messages import DEVICE_STATE_PHYS_PTT_DOWN
+
+        transport = DummyTransport(device_state_flags=DEVICE_STATE_PHYS_PTT_DOWN)
+        radio = Kv4pRadio(transport)
+
+        radio.connect()
+        try:
+            assert radio.phy_ptt is True
+        finally:
+            radio.disconnect()
+
+    def test_tx_active_property(self):
+        """Test that tx_active reflects the last known TX state without a callback."""
+        from kv4p.constants.messages import DEVICE_STATE_TX_ACTIVE
+
+        transport = DummyTransport(device_state_flags=DEVICE_STATE_TX_ACTIVE)
+        radio = Kv4pRadio(transport)
+
+        radio.connect()
+        try:
+            assert radio.tx_active is True
+        finally:
+            radio.disconnect()
+
+    def test_tx_active_callback_fires_on_state_change(self):
+        """Test that on_tx_active callback fires when TX active state changes."""
+        from kv4p.constants.messages import DEVICE_STATE_TX_ACTIVE
+
+        transport = DummyTransport(device_state_flags=DEVICE_STATE_TX_ACTIVE)
+        radio = Kv4pRadio(transport)
+        events = []
+        radio.on_tx_active(events.append)
+
+        radio.connect()
+        try:
+            assert events == [True]
+        finally:
+            radio.disconnect()
+
+    def test_sql_open_property(self):
+        """Test that sql_open reflects the last known squelch state without a callback."""
+        from kv4p.constants.messages import DEVICE_STATE_SQUELCHED
+
+        transport = DummyTransport(device_state_flags=DEVICE_STATE_SQUELCHED)
+        radio = Kv4pRadio(transport)
+
+        radio.connect()
+        try:
+            assert radio.sql_open is False
+        finally:
+            radio.disconnect()
+
     def test_sql_callback_fires_on_state_change(self):
         """Test that SQL callback fires when SQL state changes."""
         transport = DummyTransport()

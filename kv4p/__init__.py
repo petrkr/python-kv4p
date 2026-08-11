@@ -79,12 +79,16 @@ class Kv4pRadio:
         self._flow = FlowControlWindow()
         self._on_rx_audio: Callable[[bytes], None] | None = None
         self._on_sql: Callable[[bool], None] | None = None
+        self._on_phy_ptt: Callable[[bool], None] | None = None
+        self._on_tx_active: Callable[[bool], None] | None = None
         self._on_ax25_frame: Callable[[bytes], None] | None = None
         self._on_device_state: Callable[[DeviceState], None] | None = None
         self._tracker = DeviceStateTracker(
             send_desired_state=self._send_desired_state,
             on_rx_audio=lambda payload: self._on_rx_audio(payload) if self._on_rx_audio else None,
             on_sql=lambda state: self._on_sql(state) if self._on_sql else None,
+            on_phy_ptt=lambda state: self._on_phy_ptt(state) if self._on_phy_ptt else None,
+            on_tx_active=lambda state: self._on_tx_active(state) if self._on_tx_active else None,
         )
         self._open = False
         self._transport_error: Exception | None = None
@@ -255,6 +259,14 @@ class Kv4pRadio:
         """Register callback for squelch open/close events."""
         self._on_sql = callback
 
+    def on_phy_ptt(self, callback: Callable[[bool], None] | None) -> None:
+        """Register callback for physical PTT down/up events."""
+        self._on_phy_ptt = callback
+
+    def on_tx_active(self, callback: Callable[[bool], None] | None) -> None:
+        """Register callback for TX active start/stop events."""
+        self._on_tx_active = callback
+
     def on_ax25_frame(self, callback: Callable[[bytes], None] | None) -> None:
         """Register callback for incoming AX.25 frames."""
         self._on_ax25_frame = callback
@@ -274,8 +286,16 @@ class Kv4pRadio:
         return self._open and self._transport_error is None and self._tracker.hello is not None
 
     @property
-    def physical_ptt(self) -> bool:
-        return self._tracker.physical_ptt
+    def phy_ptt(self) -> bool:
+        return self._tracker.phy_ptt
+
+    @property
+    def tx_active(self) -> bool:
+        return self._tracker.tx_active
+
+    @property
+    def sql_open(self) -> bool:
+        return self._tracker.sql_open
 
     @property
     def mode(self) -> RadioMode | None:
