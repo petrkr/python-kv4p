@@ -7,11 +7,13 @@ from collections.abc import Callable
 
 from kv4p.constants.kiss import KISS_CMD_DATA, KISS_CMD_SETHARDWARE
 from kv4p.constants.messages import (
+    HOST_STATE_ENABLE_STATUS_REPORTS,
     HOST_STATE_FILTER_HIGH,
     HOST_STATE_FILTER_LOW,
     HOST_STATE_FILTER_PRE,
     HOST_STATE_HIGH_POWER,
     HOST_STATE_RSSI_ENABLED,
+    HOST_STATE_RX_AUDIO_OPEN,
     HOST_STATE_TX_ALLOWED,
 )
 from kv4p.constants.vendor import (
@@ -74,8 +76,6 @@ class Kv4pRadio:
         self,
         transport: Kv4pTransport,
         *,
-        rx_audio_open: bool = True,
-        status_reports: bool = True,
         on_rx_audio: Callable[[bytes], None] | None = None,
         on_sql: Callable[[bool], None] | None = None,
         on_ax25_frame: Callable[[bytes], None] | None = None,
@@ -83,8 +83,6 @@ class Kv4pRadio:
         self._transport = transport
         self._flow = FlowControlWindow()
         self._tracker = DeviceStateTracker(
-            rx_audio_open=rx_audio_open,
-            status_reports=status_reports,
             send_desired_state=self._send_desired_state,
             on_rx_audio=on_rx_audio,
             on_sql=on_sql,
@@ -209,6 +207,16 @@ class Kv4pRadio:
         self._require_ready()
         self._tracker.set_flag(HOST_STATE_RSSI_ENABLED, enabled)
 
+    def set_rx_audio_open(self, enabled: bool) -> None:
+        """Enable/disable receiving RX audio from the firmware."""
+        self._require_ready()
+        self._tracker.set_flag(HOST_STATE_RX_AUDIO_OPEN, enabled)
+
+    def set_status_reports(self, enabled: bool) -> None:
+        """Enable/disable periodic DEVICE_STATE reports from the firmware."""
+        self._require_ready()
+        self._tracker.set_flag(HOST_STATE_ENABLE_STATUS_REPORTS, enabled)
+
     def set_filters(self, *, pre: bool | None = None, high: bool | None = None, low: bool | None = None) -> None:
         """Enable/disable the pre-emphasis/high-pass/low-pass audio filters."""
         self._require_ready()
@@ -299,6 +307,14 @@ class Kv4pRadio:
     @property
     def rssi(self) -> bool:
         return bool(self._tracker.flags & HOST_STATE_RSSI_ENABLED)
+
+    @property
+    def rx_audio_open(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_RX_AUDIO_OPEN)
+
+    @property
+    def status_reports(self) -> bool:
+        return bool(self._tracker.flags & HOST_STATE_ENABLE_STATUS_REPORTS)
 
     @property
     def filter_pre(self) -> bool:

@@ -8,15 +8,8 @@ from collections.abc import Callable
 
 from kv4p.constants.messages import (
     DEVICE_STATE_PHYS_PTT_DOWN,
-    HOST_STATE_ENABLE_STATUS_REPORTS,
-    HOST_STATE_FILTER_HIGH,
-    HOST_STATE_FILTER_LOW,
-    HOST_STATE_FILTER_PRE,
-    HOST_STATE_HIGH_POWER,
     HOST_STATE_PTT_REQUESTED,
     HOST_STATE_RADIO_CONFIG_VALID,
-    HOST_STATE_RSSI_ENABLED,
-    HOST_STATE_RX_AUDIO_OPEN,
     HOST_STATE_TX_ALLOWED,
 )
 from kv4p.constants.vendor import COMMAND_AUDIO_ADPCM, COMMAND_AUDIO_OPUS
@@ -56,14 +49,10 @@ class DeviceStateTracker:
 
     def __init__(
         self,
-        rx_audio_open: bool,
-        status_reports: bool,
         send_desired_state: Callable[[HostDesiredState], None],
         on_rx_audio: Callable[[bytes], None] | None = None,
         on_sql: Callable[[bool], None] | None = None,
     ) -> None:
-        self._rx_audio_open = rx_audio_open
-        self._status_reports = status_reports
         self._send_desired_state = send_desired_state
         self._on_rx_audio = on_rx_audio
         self._on_sql = on_sql
@@ -73,7 +62,7 @@ class DeviceStateTracker:
         self._hello: Hello | None = None
         self._device_state: DeviceState | None = None
         self._sequence = 0
-        self._flags = self._initial_flags()
+        self._flags = HOST_STATE_RADIO_CONFIG_VALID
         self._tx_audio_command = COMMAND_AUDIO_OPUS
 
         # Radio settings, seeded from HELLO's DeviceState in on_hello().
@@ -86,7 +75,6 @@ class DeviceStateTracker:
 
         self._last_sql_open: bool | None = None
         self._last_physical_ptt: bool | None = None
-        self._rx_open_sent_after_state = False
         self._last_status_key: tuple[object, ...] | None = None
 
     # -- handshake / incoming state -----------------------------------------
@@ -97,12 +85,14 @@ class DeviceStateTracker:
             self._hello = hello
             self._device_state = hello.device_state
             self._sequence = hello.device_state.applied_sequence
-            self._flags = self._initial_flags()
+            # Seed from what the firmware actually applied at boot, including
+            # host-option bits like RX_AUDIO_OPEN/ENABLE_STATUS_REPORTS —
+            # DeviceState.flags echoes the last accepted HostDesiredState.
+            self._flags = hello.device_state.flags | HOST_STATE_RADIO_CONFIG_VALID
             self._seed_settings_locked(hello.device_state)
             self._tx_audio_command = (
                 COMMAND_AUDIO_ADPCM if hello.version.ver > _OPUS_MAX_FW else COMMAND_AUDIO_OPUS
             )
-            self._rx_open_sent_after_state = False
         logger.info(
             "HELLO firmware=%d window=%d radio=%s range=%.3f-%.3f features=0x%02x",
             hello.version.ver,
@@ -128,12 +118,6 @@ class DeviceStateTracker:
                 self._sequence = state.applied_sequence
 
         self._log_device_status(state)
-
-        if not self._rx_open_sent_after_state:
-            self._rx_open_sent_after_state = True
-            with self._lock:
-                self._flags |= HOST_STATE_RX_AUDIO_OPEN | HOST_STATE_ENABLE_STATUS_REPORTS
-                self._send_desired_state_locked()
 
         if sql_open != self._last_sql_open:
             self._last_sql_open = sql_open
@@ -319,14 +303,6 @@ class DeviceStateTracker:
             return self._device_state.mode
 
     # -- internals -----------------------------------------------------------
-
-    def _initial_flags(self) -> int:
-        flags = HOST_STATE_RADIO_CONFIG_VALID
-        if self._rx_audio_open:
-            flags |= HOST_STATE_RX_AUDIO_OPEN
-        if self._status_reports:
-            flags |= HOST_STATE_ENABLE_STATUS_REPORTS
-        return flags
 
     def _seed_settings_locked(self, state: DeviceState) -> None:
         """Seed radio settings from the firmware's actual tuned state at boot."""
