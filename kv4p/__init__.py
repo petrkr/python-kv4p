@@ -163,17 +163,21 @@ class Kv4pRadio:
     # each set_*() call sends a full HostDesiredState snapshot (the protocol
     # always wants the complete state, not a delta).
 
-    def set_frequency(self, *, rx: float | None = None, tx: float | None = None) -> None:
-        """Update RX/TX frequency, validated against the range reported in HELLO."""
+    def set_frequency(self, freq: float, txfreq: float | None = None) -> None:
+        """Update the radio's frequency, validated against the range reported in HELLO.
+
+        `freq` sets both RX and TX (simplex). Pass `txfreq` too for
+        split/repeater operation, where TX differs from RX.
+        """
         self._require_ready()
         version = self._tracker.hello.version
-        for value in (v for v in (rx, tx) if v is not None):
+        for value in (freq, txfreq) if txfreq is not None else (freq,):
             if not (version.min_radio_freq <= value <= version.max_radio_freq):
                 raise ValueError(
                     f"frequency {value} outside radio range "
                     f"{version.min_radio_freq}-{version.max_radio_freq}"
                 )
-        self._tracker.set_frequency(rx=rx, tx=tx)
+        self._tracker.set_frequency(rx=freq, tx=txfreq if txfreq is not None else freq)
 
     def set_bandwidth(self, bandwidth: str) -> None:
         """Update bandwidth ("12.5k" or "25k")."""
