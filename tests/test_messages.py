@@ -4,7 +4,7 @@ import struct
 
 import pytest
 
-from kv4p.messages.device_state import DeviceState
+from kv4p.messages.device_state import DeviceState, RadioMode
 from kv4p.messages.version import Version
 
 
@@ -64,9 +64,21 @@ class TestDeviceStateParsing:
         assert state.ctcss_tx == 0
         assert state.squelch == 1
         assert state.ctcss_rx == 0
-        assert state.mode == 1
+        assert state.mode == RadioMode.RX
 
     def test_device_state_payload_too_short(self):
         """Test that short payload raises ValueError."""
         with pytest.raises(ValueError):
             DeviceState.from_bytes(b"short")
+
+    def test_parse_device_state_unknown_mode(self):
+        """Test that an unrecognized mode byte falls back to RadioMode.UNKNOWN."""
+        data = struct.pack(
+            "<IiHBffBBBcBBB",
+            0, -1, 0, 0, 145.500, 145.500, 0, 1, 0, b"D",
+            42,     # mode (not a known RadioMode value)
+            0, 0,
+        )
+        state = DeviceState.from_bytes(data)
+
+        assert state.mode == RadioMode.UNKNOWN
