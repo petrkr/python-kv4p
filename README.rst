@@ -7,6 +7,8 @@ orchestrator (HELLO handshake, flow control, PTT, device state tracking).
 
 Targets the v2.0.0.1 Android/FW17 protocol line.
 
+Full documentation: https://petrkr.github.io/python-kv4p/
+
 Install
 -------
 
@@ -23,7 +25,9 @@ Usage
     from kv4p.transports.serial import Kv4pSerialTransport
 
     transport = Kv4pSerialTransport("/dev/ttyUSB0", 115200)
-    radio = Kv4pRadio(transport, on_rx_audio=..., on_sql=...)
+    radio = Kv4pRadio(transport)
+    radio.on_rx_audio(...)
+    radio.on_sql(...)
 
     with radio:
         # radio.freq_rx / .bandwidth / .squelch / ... are seeded from the
@@ -52,10 +56,10 @@ Layout
 .. code-block:: text
 
     kv4p/
-      __init__.py        # Kv4pRadio, vendor encode/decode
-      state_tracker.py     # DeviceStateTracker: handshake, device state, settings, PTT
-      flow_control.py         # FlowControlWindow: HTTP/2-like flow control
-      constants/                 # numeric/bit constants (kiss, vendor, messages)
-      protocol/                   # wire framing: kiss.py
-      messages/                    # one file per KV4P payload (dataclasses)
-      transports/                   # Kv4pTransport interface, serial + dummy implementations
+      __init__.py       # Kv4pRadio, vendor encode/decode
+      state_tracker.py  # DeviceStateTracker: handshake, device state, settings, PTT
+      flow_control.py   # FlowControlWindow: HTTP/2-like flow control
+      constants/        # numeric/bit constants (kiss, vendor, messages)
+      protocol/         # wire framing: kiss.py
+      messages/         # one file per KV4P payload (dataclasses)
+      transports/       # Kv4pTransport interface, serial + dummy implementations
