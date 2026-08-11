@@ -56,6 +56,6 @@ Layout
       state_tracker.py     # DeviceStateTracker: handshake, device state, settings, PTT
       flow_control.py         # FlowControlWindow: HTTP/2-like flow control
       constants/                 # numeric/bit constants (kiss, vendor, messages)
-      protocol/                   # wire framing: kiss.py, ax25.py
+      protocol/                   # wire framing: kiss.py
       messages/                    # one file per KV4P payload (dataclasses)
       transports/                   # Kv4pTransport interface, serial + dummy implementations
