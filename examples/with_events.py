@@ -25,7 +25,10 @@ radio.connect()
 try:
     print(f"Connected to firmware {radio.hello.version.ver}")
     print(f"RX Frequency: {radio.freq_rx:.3f} MHz")
+
+    radio.set_rx_audio_open(True)
     print("Listening for events (Ctrl+C to exit)...")
+
 
     # Keep running until interrupted
     import time
