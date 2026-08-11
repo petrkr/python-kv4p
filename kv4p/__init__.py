@@ -105,51 +105,51 @@ class Kv4pRadio:
             COMMAND_WINDOW_UPDATE: self._handle_window_update,
         }
 
+    # -- lifecycle -------------------------------------------------------------
+
     def __enter__(self) -> Kv4pRadio:
         try:
-            self.open()
+            self.connect()
         except BaseException:
-            self.close()
+            self.disconnect()
             raise
         return self
 
     def __exit__(self, _exc_type: object, _exc: object, _tb: object) -> None:
-        self.close()
+        self.disconnect()
 
-    # -- lifecycle -------------------------------------------------------------
-
-    def open(self, hello_timeout: float = 5.0) -> None:
+    def connect(self, hello_timeout: float = 5.0) -> None:
         """Open the transport, reset the radio, and wait for HELLO."""
         if self._open:
             return
         self._transport_error = None
         self._transport.open(self._on_kiss_frame, self._on_transport_error)
         self._open = True
-        logger.info("radio open")
+        logger.info("radio connect")
         self.reset(hello_timeout=hello_timeout)
 
-    def close(self) -> None:
+    def disconnect(self) -> None:
         """Close radio transport."""
         if not self._open:
             return
-        logger.info("radio close")
+        logger.info("radio disconnect")
         try:
             if self.is_ready:
                 self.set_ptt(False)
         except Exception:
-            logger.exception("failed to clear PTT during close")
+            logger.exception("failed to clear PTT during disconnect")
 
         self._transport.close()
         self._open = False
-        logger.info("radio closed")
+        logger.info("radio disconnected")
 
     def reset(self, hello_timeout: float = 5.0) -> None:
         """Hardware-reset the radio and wait for it to re-announce itself via HELLO.
 
-        Public so callers can recover a radio that has hung, not just at open().
+        Public so callers can recover a radio that has hung, not just at connect().
         """
         if not self._open:
-            raise RuntimeError("radio transport is not open")
+            raise RuntimeError("radio transport is not connected")
         self._transport.reset()
         if not self._tracker.wait_for_hello(timeout=hello_timeout):
             raise TimeoutError("timed out waiting for HELLO after reset")
