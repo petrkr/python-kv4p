@@ -1,7 +1,5 @@
 """Tests for KISS protocol framing."""
 
-import pytest
-
 from kv4p.constants.kiss import KISS_FEND, KISS_FESC, KISS_TFEND, KISS_TFESC
 from kv4p.protocol.kiss import KissParser, encode_kiss_frame
 

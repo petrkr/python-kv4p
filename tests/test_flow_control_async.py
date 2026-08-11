@@ -3,8 +3,6 @@
 import threading
 import time
 
-import pytest
-
 from kv4p.flow_control import FlowControlWindow
 
 

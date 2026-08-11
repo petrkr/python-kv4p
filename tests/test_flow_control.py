@@ -1,7 +1,5 @@
 """Tests for flow control window."""
 
-import pytest
-
 from kv4p.flow_control import FlowControlWindow
 
 
