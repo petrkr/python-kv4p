@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Example: monitor device state updates with flags."""
 
+import argparse
+
 from kv4p import (
     Kv4pRadio,
     HOST_STATE_HIGH_POWER,
@@ -9,7 +11,11 @@ from kv4p import (
 )
 from kv4p.transports.serial import Kv4pSerialTransport
 
-transport = Kv4pSerialTransport("/dev/ttyUSB0", 115200)
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--device", default="/dev/ttyUSB0", help="serial device (default: %(default)s)")
+args = parser.parse_args()
+
+transport = Kv4pSerialTransport(args.device, 115200)
 radio = Kv4pRadio(transport)
 
 # Register device state callback

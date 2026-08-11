@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Example: register and handle events (SQL, physical PTT, AX.25 frames)."""
 
+import argparse
+
 from kv4p import Kv4pRadio
 from kv4p.transports.serial import Kv4pSerialTransport
 
-transport = Kv4pSerialTransport("/dev/ttyUSB0", 115200)
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--device", default="/dev/ttyUSB0", help="serial device (default: %(default)s)")
+args = parser.parse_args()
+
+transport = Kv4pSerialTransport(args.device, 115200)
 radio = Kv4pRadio(transport)
 
 # Register event callbacks
