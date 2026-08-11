@@ -73,22 +73,18 @@ class RadioTransportError(RadioNotReadyError):
 class Kv4pRadio:
     """KV4P-HT radio side of the bridge."""
 
-    def __init__(
-        self,
-        transport: Kv4pTransport,
-        *,
-        on_rx_audio: Callable[[bytes], None] | None = None,
-        on_sql: Callable[[bool], None] | None = None,
-        on_ax25_frame: Callable[[bytes], None] | None = None,
-    ) -> None:
+    def __init__(self, transport: Kv4pTransport) -> None:
         self._transport = transport
         self._flow = FlowControlWindow()
+        self._on_rx_audio: Callable[[bytes], None] | None = None
+        self._on_sql: Callable[[bool], None] | None = None
+        self._on_ax25_frame: Callable[[bytes], None] | None = None
+        self._on_device_state: Callable[[DeviceState], None] | None = None
         self._tracker = DeviceStateTracker(
             send_desired_state=self._send_desired_state,
-            on_rx_audio=on_rx_audio,
-            on_sql=on_sql,
+            on_rx_audio=lambda payload: self._on_rx_audio(payload) if self._on_rx_audio else None,
+            on_sql=lambda state: self._on_sql(state) if self._on_sql else None,
         )
-        self._on_ax25_frame = on_ax25_frame
         self._open = False
         self._transport_error: Exception | None = None
 
@@ -250,6 +246,22 @@ class Kv4pRadio:
         """Flush pending serial writes."""
         self._transport.flush()
 
+    def on_rx_audio(self, callback: Callable[[bytes], None] | None) -> None:
+        """Register callback for incoming audio frames."""
+        self._on_rx_audio = callback
+
+    def on_sql(self, callback: Callable[[bool], None] | None) -> None:
+        """Register callback for squelch open/close events."""
+        self._on_sql = callback
+
+    def on_ax25_frame(self, callback: Callable[[bytes], None] | None) -> None:
+        """Register callback for incoming AX.25 frames."""
+        self._on_ax25_frame = callback
+
+    def on_device_state(self, callback: Callable[[DeviceState], None] | None) -> None:
+        """Register callback for device state updates."""
+        self._on_device_state = callback
+
     # -- read-only state -----------------------------------------------------
 
     @property
@@ -372,7 +384,10 @@ class Kv4pRadio:
         self._tracker.on_hello(hello)
 
     def _handle_device_state(self, payload: bytes) -> None:
-        self._tracker.on_device_state(DeviceState.from_bytes(payload))
+        state = DeviceState.from_bytes(payload)
+        self._tracker.on_device_state(state)
+        if self._on_device_state is not None:
+            self._on_device_state(state)
 
     def _handle_rx_audio(self, payload: bytes) -> None:
         self._tracker.on_rx_audio(payload)
