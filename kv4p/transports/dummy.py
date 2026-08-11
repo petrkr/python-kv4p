@@ -29,12 +29,14 @@ class DummyTransport(Kv4pTransport):
         min_radio_freq: float = 134.0,
         max_radio_freq: float = 174.0,
         features: int = 0,
+        device_state_flags: int = 0,
     ) -> None:
         self._firmware_version = firmware_version
         self._window_size = window_size
         self._min_radio_freq = min_radio_freq
         self._max_radio_freq = max_radio_freq
         self._features = features
+        self._device_state_flags = device_state_flags
         self._on_frame: Callable[[int, bytes], None] | None = None
         self.written: list[tuple[int, bytes]] = []
 
@@ -68,7 +70,7 @@ class DummyTransport(Kv4pTransport):
         device_state = _DEVICE_STATE.pack(
             0,  # applied_sequence
             -1,  # memory_id
-            0,  # flags
+            self._device_state_flags,  # flags
             0,  # bw
             self._min_radio_freq,  # freq_tx
             self._min_radio_freq,  # freq_rx

@@ -129,3 +129,48 @@ class TestRadioWithDummy:
             assert radio.tx_allowed is False
         finally:
             radio.disconnect()
+
+    def test_hello_filters_device_state_squelched_bit(self):
+        """Test that HELLO initialization filters out DEVICE_STATE_SQUELCHED from flags.
+
+        This test verifies that when firmware reports DEVICE_STATE_SQUELCHED bit in HELLO,
+        it is NOT copied into the tracker's internal HOST_STATE flags. The bit represents
+        runtime state (whether SQL is currently squelched), not a persisted host setting.
+        """
+        from kv4p.constants.messages import DEVICE_STATE_SQUELCHED, HOST_STATE_RADIO_CONFIG_VALID
+
+        # Create DummyTransport that reports DEVICE_STATE_SQUELCHED in HELLO
+        transport = DummyTransport(device_state_flags=DEVICE_STATE_SQUELCHED | HOST_STATE_RADIO_CONFIG_VALID)
+        radio = Kv4pRadio(transport)
+
+        radio.connect()
+        try:
+            # Tracker flags should have RADIO_CONFIG_VALID but NOT SQUELCHED
+            tracker_flags = radio._tracker.flags
+            assert tracker_flags & HOST_STATE_RADIO_CONFIG_VALID, "Should have RADIO_CONFIG_VALID"
+            assert not (tracker_flags & DEVICE_STATE_SQUELCHED), "Should NOT have DEVICE_STATE_SQUELCHED"
+        finally:
+            radio.disconnect()
+
+    def test_sql_callback_fires_on_state_change(self):
+        """Test that SQL callback fires when SQL state changes."""
+        transport = DummyTransport()
+        radio = Kv4pRadio(transport)
+        sql_events = []
+
+        def on_sql(open_state):
+            sql_events.append(open_state)
+
+        radio.on_sql(on_sql)
+
+        radio.connect()
+        try:
+            # Initial state: SQL closed
+            assert len(sql_events) >= 1
+            # DummyTransport simulates SQL opening after a delay
+            import time
+            time.sleep(1)
+            # Should have captured SQL open event
+            assert True in sql_events, f"Expected SQL open event, got {sql_events}"
+        finally:
+            radio.disconnect()
