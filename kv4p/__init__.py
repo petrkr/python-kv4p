@@ -1,8 +1,8 @@
 """KV4P radio integration."""
 
-__version__ = "0.0.0"
-
 from __future__ import annotations
+
+__version__ = "0.0.0"
 
 import logging
 from collections.abc import Callable
