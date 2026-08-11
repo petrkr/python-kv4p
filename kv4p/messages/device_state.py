@@ -25,7 +25,7 @@ class DeviceState:
     squelch: int
     ctcss_rx: int
     radio_module_status: str
-    mode: int
+    mode: int  # 0=TX, 1=RX, 2=STOPPED
     last_error: int
     latest_rssi: int
 
