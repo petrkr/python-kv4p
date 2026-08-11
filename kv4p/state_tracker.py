@@ -8,6 +8,8 @@ from collections.abc import Callable
 
 from kv4p.constants.messages import (
     DEVICE_STATE_PHYS_PTT_DOWN,
+    DEVICE_STATE_SQUELCHED,
+    DEVICE_STATE_TX_ACTIVE,
     HOST_STATE_PTT_REQUESTED,
     HOST_STATE_RADIO_CONFIG_VALID,
     HOST_STATE_TX_ALLOWED,
@@ -85,10 +87,9 @@ class DeviceStateTracker:
             self._hello = hello
             self._device_state = hello.device_state
             self._sequence = hello.device_state.applied_sequence
-            # Seed from what the firmware actually applied at boot, including
-            # host-option bits like RX_AUDIO_OPEN/ENABLE_STATUS_REPORTS —
-            # DeviceState.flags echoes the last accepted HostDesiredState.
-            self._flags = hello.device_state.flags | HOST_STATE_RADIO_CONFIG_VALID
+            self._flags = (hello.device_state.flags
+                           & ~(DEVICE_STATE_PHYS_PTT_DOWN | DEVICE_STATE_TX_ACTIVE | DEVICE_STATE_SQUELCHED )) \
+                            | HOST_STATE_RADIO_CONFIG_VALID
             self._seed_settings_locked(hello.device_state)
             self._tx_audio_command = (
                 COMMAND_AUDIO_ADPCM if hello.version.ver > _OPUS_MAX_FW else COMMAND_AUDIO_OPUS
