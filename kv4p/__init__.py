@@ -40,7 +40,6 @@ from kv4p.messages.window_update import WindowUpdate
 from kv4p.protocol.kiss import encode_kiss_frame
 from kv4p.state_tracker import DeviceStateTracker
 from kv4p.transports import Kv4pTransport
-from kv4p.transports.serial import Kv4pSerialTransport
 
 logger = logging.getLogger(__name__)
 
