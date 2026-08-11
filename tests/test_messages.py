@@ -5,7 +5,7 @@ import struct
 import pytest
 
 from kv4p.messages.device_state import DeviceState, RadioMode
-from kv4p.messages.version import Version
+from kv4p.messages.version import Version, RadioFeatures
 
 
 class TestVersionParsing:
@@ -29,6 +29,25 @@ class TestVersionParsing:
         """Test that short payload raises ValueError."""
         with pytest.raises(ValueError):
             Version.from_bytes(b"short")
+
+    def test_radio_features_flags(self):
+        """Test RadioFeatures flag combinations."""
+        assert RadioFeatures.HAS_HL == 1
+        assert RadioFeatures.HAS_PHY_PTT == 2
+        assert RadioFeatures.HAS_ESP32_AFSK == 4
+
+        combined = RadioFeatures.HAS_HL | RadioFeatures.HAS_PHY_PTT
+        assert combined & RadioFeatures.HAS_HL
+        assert combined & RadioFeatures.HAS_PHY_PTT
+        assert not (combined & RadioFeatures.HAS_ESP32_AFSK)
+
+    def test_radio_features_bool_properties(self):
+        """Test RadioFeatures bool convenience properties."""
+        combined = RadioFeatures.HAS_HL | RadioFeatures.HAS_PHY_PTT
+
+        assert combined.hl is True
+        assert combined.phy_ptt is True
+        assert combined.esp32_afsk is False
 
 
 class TestDeviceStateParsing:
