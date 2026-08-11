@@ -258,7 +258,7 @@ class Kv4pRadio:
 
     @property
     def is_ready(self) -> bool:
-        return self._transport_error is None and self._tracker.hello is not None
+        return self._open and self._transport_error is None and self._tracker.hello is not None
 
     @property
     def physical_ptt(self) -> bool:
