@@ -4,11 +4,33 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-kv4p"
-version = "0.0.0"
+dynamic = ["version"]
 description = "Python implementation of the KV4P-HT radio protocol"
 readme = "README.rst"
-license = "MIT"
 requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  { name = "Petr Kracik" }
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Communications :: Ham Radio",
+]
 dependencies = [
   "pyserial>=3.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/petrkr/python-kv4p"
+Issues = "https://github.com/petrkr/python-kv4p/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "kv4p.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

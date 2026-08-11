@@ -1,5 +1,7 @@
 """KV4P radio integration."""
 
+__version__ = "0.0.0"
+
 from __future__ import annotations
 
 import logging
